@@ -226,6 +226,9 @@ GoSheet includes **104 built-in functions** organized into 22 categories:
 ### Additional Math Utility (3)
 `FACTORIAL`, `GCD`, `LCM`
 
+### Http
+`HTTPGET`
+
 ### Formula Examples
 
 ```excel
@@ -269,6 +272,8 @@ Cell C1: 5
 Cell C2: 15
 Cell C3: 25
 Cell D1: $=AVG(A1:A3, C1:C3)  → Result: 17.5
+
+Cell C1: $= HTTPGET("https://example.com", "path.in.json")
 ```
 
 ---

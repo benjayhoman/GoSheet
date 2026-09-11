@@ -21,6 +21,7 @@ func GovalFuncs() map[string]ExprFunction {
 	mergeFunctions(functions, StringFunctions())
 	mergeFunctions(functions, DateTimeFunctions())
 	mergeFunctions(functions, LogicalFunctions())
+	mergeFunctions(functions, HttpFunctions())
 
 	return functions
 }
