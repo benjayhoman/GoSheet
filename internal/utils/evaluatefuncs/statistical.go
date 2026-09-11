@@ -37,7 +37,7 @@ func StatisticalFunctions() map[string]ExprFunction {
 		},
 
 		"SUM": func(args ...any) (any, error) {
-			if err := validateArgs("SUM", args, 2, -1); err != nil {
+			if err := validateArgs("SUM", args, 1, -1); err != nil {
 				return nil, err
 			}
 			sum := 0.0
