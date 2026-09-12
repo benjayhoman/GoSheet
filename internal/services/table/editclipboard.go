@@ -148,7 +148,7 @@ func highlightRange(table *tview.Table, absR1, absC1, absR2, absC2 int32) {
 func copySelection(table *tview.Table) {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -178,11 +178,11 @@ func copySelection(table *tview.Table) {
 		for c := c1; c <= c2; c++ {
 			key := [2]int{int(r), int(c)}
 			if cellData, exists := activeData[key]; exists {
-				clone := *cellData
+				clone := cellData.Clone()
 				clone.Row = 0
 				clone.Column = 0
 				clone.Dependents = []*string{}
-				rowSlice = append(rowSlice, &clone)
+				rowSlice = append(rowSlice, clone)
 			} else {
 				emptyCell := cell.NewCell(0, 0, "")
 				rowSlice = append(rowSlice, emptyCell)
@@ -202,7 +202,7 @@ func pasteSelection(app *tview.Application, table *tview.Table, visualTargetRow,
 
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -253,7 +253,7 @@ func pasteSelection(app *tview.Application, table *tview.Table, visualTargetRow,
 func performPaste(table *tview.Table, clipboard [][]*cell.Cell, targetRow, targetCol int32) {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -261,11 +261,15 @@ func performPaste(table *tview.Table, clipboard [][]*cell.Cell, targetRow, targe
 	r1, c1 := targetRow, targetCol
 	r2 := targetRow + int32(len(clipboard)) - 1
 	c2 := targetCol + int32(len(clipboard[0])) - 1
-	
+
 	oldCells := captureCellRange(r1, c1, r2, c2)
-	
+
 	for r, rowSlice := range clipboard {
 		for c, srcCell := range rowSlice {
+			if srcCell == nil {
+				continue
+			}
+
 			destRow := targetRow + int32(r)
 			destCol := targetCol + int32(c)
 
@@ -273,42 +277,42 @@ func performPaste(table *tview.Table, clipboard [][]*cell.Cell, targetRow, targe
 				continue
 			}
 
-			newCell := *srcCell
+			newCell := srcCell.Clone()
 			newCell.Row = destRow
 			newCell.Column = destCol
-			
+
 			if newCell.IsFormula() {
 				newCell.ClearFlag(cell.FlagEvaluated)
 				newCell.Dependents = []*string{}
-				
+
 				newCellRef := utils.FormatCellRef(destRow, destCol)
-				
+
 				for _, depRef := range newCell.DependsOn {
 					depCell, err := GetCellByRef(table, *depRef)
 					if err != nil {
 						continue
 					}
-					
+
 					if !contains(depCell.Dependents, newCellRef) {
 						depCell.Dependents = append(depCell.Dependents, &newCellRef)
 					}
 				}
-				
-				if err := EvaluateCell(table, &newCell); err != nil {
+
+				if err := EvaluateCell(table, newCell); err != nil {
 					*newCell.Display = "#ERROR!"
 				}
 			}
-			
+
 			key := [2]int{int(destRow), int(destCol)}
-			activeData[key] = &newCell
-			
+			activeData[key] = newCell
+
 			if activeViewport.IsVisible(destRow, destCol) {
 				visualR, visualC := activeViewport.ToRelative(destRow, destCol)
 				table.SetCell(int(visualR), int(visualC), newCell.ToTViewCell())
 			}
 		}
 	}
-	
+
 	newCells := captureCellRange(r1, c1, r2, c2)
 	RecordMultiCellAction(ActionPasteCells, r1, c1, r2, c2, oldCells, newCells)
 }
@@ -317,7 +321,7 @@ func performPaste(table *tview.Table, clipboard [][]*cell.Cell, targetRow, targe
 func cutSelection(app *tview.Application, table *tview.Table) {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -372,7 +376,7 @@ func cutSelection(app *tview.Application, table *tview.Table) {
 func clearCutCells(table *tview.Table, r1, c1, r2, c2 int32) {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -380,7 +384,7 @@ func clearCutCells(table *tview.Table, r1, c1, r2, c2 int32) {
 	for r := r1; r <= r2; r++ {
 		for c := c1; c <= c2; c++ {
 			key := [2]int{int(r), int(c)}
-			
+
 			if oldCell, exists := activeData[key]; exists {
 				cellRef := utils.FormatCellRef(int32(r), int32(c))
 				for _, depRef := range oldCell.DependsOn {
@@ -390,7 +394,7 @@ func clearCutCells(table *tview.Table, r1, c1, r2, c2 int32) {
 					}
 					depCell.Dependents = removeFromSlice(depCell.Dependents, cellRef)
 				}
-				
+
 				for _, dependentRef := range oldCell.Dependents {
 					dependentCell, err := GetCellByRef(table, *dependentRef)
 					if err != nil {
@@ -401,10 +405,10 @@ func clearCutCells(table *tview.Table, r1, c1, r2, c2 int32) {
 					}
 				}
 			}
-			
+
 			newCell := cell.NewCell(int32(r), int32(c), "")
 			activeData[key] = newCell
-			
+
 			if activeViewport.IsVisible(int32(r), int32(c)) {
 				visualR, visualC := activeViewport.ToRelative(int32(r), int32(c))
 				table.SetCell(int(visualR), int(visualC), newCell.ToTViewCell())
@@ -417,7 +421,7 @@ func clearCutCells(table *tview.Table, r1, c1, r2, c2 int32) {
 func deleteSelection(app *tview.Application, table *tview.Table) {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return
 	}
@@ -438,7 +442,7 @@ func deleteSelection(app *tview.Application, table *tview.Table) {
 		}
 	}
 
-	r1, c1, r2, c2 := getSelectionRange(table)	
+	r1, c1, r2, c2 := getSelectionRange(table)
 
 	for r := r1; r <= r2; r++ {
 		for c := c1; c <= c2; c++ {
@@ -450,18 +454,17 @@ func deleteSelection(app *tview.Application, table *tview.Table) {
 						AddButtons([]string{"Yes", "Cancel"}).
 						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 							if buttonLabel == "Yes" {
-    							performDelete(table, r1, c1, r2, c2)
-                        	}	
+								performDelete(table, r1, c1, r2, c2)
+							}
 							app.SetRoot(table, true).SetFocus(table)
 						})
 					modal.SetBorder(true).SetTitle("Confirm Delete").SetTitleAlign(tview.AlignCenter)
-                	app.SetRoot(modal, true).SetFocus(modal)	
+					app.SetRoot(modal, true).SetFocus(modal)
 					return
 				}
 			}
 		}
 	}
-
 
 	performDelete(table, r1, c1, r2, c2)
 	clearSelectionRange()
@@ -470,11 +473,11 @@ func deleteSelection(app *tview.Application, table *tview.Table) {
 // performDelete deletes cells
 func performDelete(table *tview.Table, r1, c1, r2, c2 int32) {
 	oldCells := captureCellRange(r1, c1, r2, c2)
-	
+
 	clearCutCells(table, r1, c1, r2, c2)
-	
+
 	newCells := captureCellRange(r1, c1, r2, c2)
-	
+
 	RecordMultiCellAction(ActionDeleteCells, r1, c1, r2, c2, oldCells, newCells)
 }
 
@@ -482,13 +485,13 @@ func performDelete(table *tview.Table, r1, c1, r2, c2 int32) {
 func captureCellRange(r1, c1, r2, c2 int32) [][]*cell.Cell {
 	activeData := GetActiveSheetData()
 	activeViewport := GetActiveViewport()
-	
+
 	if activeData == nil || activeViewport == nil {
 		return nil
 	}
 
 	var cells [][]*cell.Cell
-	
+
 	for r := r1; r <= r2; r++ {
 		var row []*cell.Cell
 		for c := c1; c <= c2; c++ {
@@ -501,6 +504,6 @@ func captureCellRange(r1, c1, r2, c2 int32) [][]*cell.Cell {
 		}
 		cells = append(cells, row)
 	}
-	
+
 	return cells
 }
